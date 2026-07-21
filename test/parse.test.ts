@@ -85,8 +85,16 @@ describe("parse — error handling", () => {
     expect(() => parse("2026", "yyyy'", "PlainDate", opts)).toThrow(InvalidPatternError);
   });
 
-  it("throws a clear error when no Temporal implementation is available", () => {
-    // No native Temporal on this runtime and no { temporal } supplied.
+  // Behaviour of the default (no { temporal }) branch depends on the runtime: it uses
+  // globalThis.Temporal when present (Node 26+ / browsers) and otherwise throws. Guard
+  // on that so the suite is correct across the whole CI Node matrix (18 → 26).
+  const hasNativeTemporal = typeof (globalThis as { Temporal?: unknown }).Temporal !== "undefined";
+
+  it.skipIf(hasNativeTemporal)("throws a clear error when no Temporal implementation is available", () => {
     expect(() => parse("2026-07-13", "yyyy-MM-dd", "PlainDate")).toThrow(/No Temporal implementation/);
+  });
+
+  it.skipIf(!hasNativeTemporal)("uses native globalThis.Temporal when no { temporal } is supplied", () => {
+    expect(parse("2026-07-13", "yyyy-MM-dd", "PlainDate").toString()).toBe("2026-07-13");
   });
 });

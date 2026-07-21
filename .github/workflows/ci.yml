@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 24 and 26 are not just newer runtimes: Node 26 ships Temporal natively,
+        # so this also exercises `parse`'s native construction path (it falls back to
+        # globalThis.Temporal when no { temporal } is supplied) alongside the polyfill.
+        node: [18, 20, 22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      # The package has ZERO runtime deps; @js-temporal/polyfill is a devDep the test
+      # suite uses. Its `prepare` can leave dist/ empty on some installs — fail fast.
+      - name: Verify polyfill resolves (test dependency)
+        run: node -e "require.resolve('@js-temporal/polyfill')"
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  attw:
+    # attw statically inspects the packed tarball's `exports` map, so its result is
+    # Node-version independent; it also requires Node >= 20 itself. Hence one job
+    # outside the matrix rather than running `npm run attw` on the Node 18 leg.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # `files` is ["dist"] with no prepack hook, so build first or the tarball is empty.
+      - run: npm run build
+      - run: npm run attw

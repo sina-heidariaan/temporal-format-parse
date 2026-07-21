@@ -8,11 +8,19 @@ released version corresponds to a git tag `vX.Y.Z` and a GitHub Release.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
 
-## [0.1.0] — 2026-07-21
+- Test suite: dedicated `reflect` coverage and `temporal-sql`-style edge-case tests
+  (pre-1970 and proleptic/BC years, years ≥ 10000, leap-day validity, DST fall-back
+  fold, fractional-second and boundary-time precision).
+- CI: GitHub Actions workflow — a `check` matrix on Node 18/20/22/24/26 (26 exercises
+  native Temporal) plus a separate `attw` tarball-gate job.
 
-Initial release.
+_Dev-only; no change to published sources._
+
+## [0.1.1] — 2026-07-21
+
+Initial public release (first version published to npm).
 
 ### Added
 
@@ -31,12 +39,13 @@ Initial release.
 - `getTemporalType`, `isTemporal`, and the error types `FormatError`, `ParseError`,
   `InvalidPatternError`.
 - Zero runtime dependencies. Dual CJS/ESM builds with `.d.ts`/`.d.cts`; subpath
-  exports `temporal-format-parse/format` and `temporal-format-parse/parse` for tree-shaking.
+  exports `temporal-format-parse/format` and `temporal-format-parse/parse` for
+  tree-shaking.
 
 ### Not included (by design)
 
 - No locale-aware textual parsing (month/weekday/era names, am/pm words).
 - No full CLDR/LDML engine — a curated common numeric token subset only.
 
-[Unreleased]: https://github.com/sina-heidariaan/temporal-format-parser/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/sina-heidariaan/temporal-format-parser/releases/tag/v0.1.0
+[Unreleased]: https://github.com/sina-heidariaan/temporal-format-parser/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/sina-heidariaan/temporal-format-parser/releases/tag/v0.1.1

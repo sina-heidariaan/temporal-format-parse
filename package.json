@@ -1,0 +1,94 @@
+{
+  "name": "temporal-format-parse",
+  "version": "0.1.0",
+  "description": "Token-based format and numeric parse for TC39 Temporal — format(value, \"yyyy-MM-dd\") and parse(\"07/13/2026\", \"MM/dd/yyyy\", \"PlainDate\") directly on Temporal values, no JS Date round-trip. Zero runtime dependencies; works on native Temporal or any polyfill.",
+  "type": "module",
+  "license": "MIT",
+  "author": "sina-heidariaan (https://github.com/sina-heidariaan)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sina-heidariaan/temporal-format-parser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sina-heidariaan/temporal-format-parser/issues"
+  },
+  "homepage": "https://github.com/sina-heidariaan/temporal-format-parser#readme",
+  "keywords": [
+    "temporal",
+    "temporal-api",
+    "tc39",
+    "format",
+    "parse",
+    "date",
+    "time",
+    "datetime",
+    "date-formatting",
+    "date-parsing",
+    "token",
+    "strftime",
+    "timezone",
+    "nanosecond",
+    "iso8601",
+    "moment",
+    "luxon",
+    "dayjs",
+    "date-fns"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./format": {
+      "import": {
+        "types": "./dist/format.d.ts",
+        "default": "./dist/format.js"
+      },
+      "require": {
+        "types": "./dist/format.d.cts",
+        "default": "./dist/format.cjs"
+      }
+    },
+    "./parse": {
+      "import": {
+        "types": "./dist/parse.d.ts",
+        "default": "./dist/parse.js"
+      },
+      "require": {
+        "types": "./dist/parse.d.cts",
+        "default": "./dist/parse.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "attw": "node scripts/check-types.mjs",
+    "check": "npm run typecheck && npm run test && npm run build && npm run attw"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.3",
+    "@js-temporal/polyfill": "^0.5.1",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "fast-check": "^3.23.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.0"
+  }
+}

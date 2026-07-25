@@ -59,6 +59,100 @@ describe("format — fixed numeric patterns", () => {
   });
 });
 
+describe("format — 12-hour clock (h/hh/a)", () => {
+  it.each([
+    ["00:00", "12:00 AM"],
+    ["00:30", "12:30 AM"],
+    ["01:05", "1:05 AM"],
+    ["11:59", "11:59 AM"],
+    ["12:00", "12:00 PM"],
+    ["12:30", "12:30 PM"],
+    ["13:05", "1:05 PM"],
+    ["23:59", "11:59 PM"],
+  ])("%s → %s with h:mm a", (iso, expected) => {
+    expect(format(Temporal.PlainTime.from(iso), "h:mm a")).toBe(expected);
+  });
+
+  it("pads with hh", () => {
+    expect(format(Temporal.PlainTime.from("09:05"), "hh:mm a")).toBe("09:05 AM");
+    expect(format(Temporal.PlainTime.from("00:05"), "hh:mm a")).toBe("12:05 AM");
+  });
+
+  it("works on PlainDateTime and ZonedDateTime", () => {
+    expect(format(Temporal.PlainDateTime.from("2026-07-13T13:05"), "yyyy-MM-dd h:mm a")).toBe("2026-07-13 1:05 PM");
+    const zdt = Temporal.ZonedDateTime.from("2026-07-13T13:05:00-04:00[America/New_York]");
+    expect(format(zdt, "h:mm a ZZ")).toBe("1:05 PM -04:00");
+  });
+
+  it("agrees with Intl's h12 hourCycle", () => {
+    const dtf = new TemporalIntl.DateTimeFormat("en-US", {
+      calendar: "iso8601",
+      hour: "numeric",
+      minute: "2-digit",
+      hourCycle: "h12",
+      timeZone: "UTC",
+    });
+    for (const iso of ["2026-07-13T00:00", "2026-07-13T12:00", "2026-07-13T13:05", "2026-07-13T23:59"]) {
+      const dt = Temporal.PlainDateTime.from(iso);
+      const parts = Object.fromEntries(dtf.formatToParts(dt).map((p) => [p.type, p.value]));
+      expect(format(dt, "h:mm a")).toBe(`${parts.hour}:${parts.minute} ${parts.dayPeriod?.toUpperCase()}`);
+    }
+  });
+
+  it("rejects mixing the 24-hour and 12-hour clocks", () => {
+    const t = Temporal.PlainTime.from("13:05");
+    expect(() => format(t, "HH:mm a")).toThrow(InvalidPatternError);
+    expect(() => format(t, "HH h")).toThrow(InvalidPatternError);
+  });
+
+  it("rejects 12-hour tokens on a date-only type", () => {
+    expect(() => format(Temporal.PlainDate.from("2026-07-13"), "yyyy h")).toThrow(FormatError);
+    expect(() => format(Temporal.PlainDate.from("2026-07-13"), "yyyy a")).toThrow(FormatError);
+  });
+
+  it("rejects hhh and aa", () => {
+    const t = Temporal.PlainTime.from("13:05");
+    expect(() => format(t, "hhh")).toThrow(InvalidPatternError);
+    expect(() => format(t, "aa")).toThrow(InvalidPatternError);
+  });
+});
+
+describe("format — offset variants (X/XX/XXX)", () => {
+  const at = (iso: string) => Temporal.ZonedDateTime.from(iso);
+
+  it.each([
+    ["X", "2026-07-13T09:30:00-04:00[America/New_York]", "-04"],
+    ["XX", "2026-07-13T09:30:00-04:00[America/New_York]", "-0400"],
+    ["XXX", "2026-07-13T09:30:00-04:00[America/New_York]", "-04:00"],
+    ["ZZ", "2026-07-13T09:30:00-04:00[America/New_York]", "-04:00"],
+  ])("%s on a whole-hour offset → %s", (pattern, iso, expected) => {
+    expect(format(at(iso), pattern)).toBe(expected);
+  });
+
+  it("renders UTC as Z for every X form but not for ZZ", () => {
+    const utc = at("2026-07-13T09:30:00+00:00[UTC]");
+    expect(format(utc, "X")).toBe("Z");
+    expect(format(utc, "XX")).toBe("Z");
+    expect(format(utc, "XXX")).toBe("Z");
+    expect(format(utc, "ZZ")).toBe("+00:00");
+  });
+
+  it("widens X to ±HHMM when the offset has minutes", () => {
+    const kolkata = at("2026-07-13T09:30:00+05:30[Asia/Kolkata]");
+    expect(format(kolkata, "X")).toBe("+0530");
+    expect(format(kolkata, "XX")).toBe("+0530");
+    expect(format(kolkata, "XXX")).toBe("+05:30");
+  });
+
+  it("rejects X on a type with no offset", () => {
+    expect(() => format(Temporal.PlainDateTime.from("2026-07-13T09:30"), "X")).toThrow(FormatError);
+  });
+
+  it("rejects XXXX", () => {
+    expect(() => format(at("2026-07-13T09:30:00+00:00[UTC]"), "XXXX")).toThrow(InvalidPatternError);
+  });
+});
+
 describe("format — oracle against Intl.DateTimeFormat", () => {
   // Where the numeric tokens overlap Intl's numeric parts, our output must agree.
   const dtf = new TemporalIntl.DateTimeFormat("en-US", {

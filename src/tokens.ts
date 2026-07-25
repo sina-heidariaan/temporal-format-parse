@@ -4,8 +4,10 @@ import { InvalidPatternError } from "./errors.js";
 /**
  * The token engine shared by `format` and `parse`: a pattern tokenizer, the token
  * vocabulary, and the per-type validity table. Kept deliberately small — a curated
- * common subset of Unicode TR35, numeric only. No locale/textual tokens (month
- * names, am/pm words, era) by design; those need CLDR data and can't round-trip.
+ * common subset of Unicode TR35, numeric only. No locale-dependent tokens (month
+ * names, weekday names, era) by design; those need CLDR data and can't round-trip.
+ * The one textual token, `a`, is fixed English `AM`/`PM` — arithmetic plus two
+ * constants, not locale data.
  */
 
 /** The abstract field a token maps to. */
@@ -14,6 +16,8 @@ export type FieldKind =
   | "month"
   | "day"
   | "hour"
+  | "hour12"
+  | "dayPeriod"
   | "minute"
   | "second"
   | "fraction"
@@ -47,7 +51,7 @@ export interface TokenSegment {
 export type Segment = Literal | TokenSegment;
 
 /** Letters that begin a token. Any other unquoted ASCII letter is an error. */
-const TOKEN_LETTERS = new Set(["y", "M", "d", "H", "m", "s", "S", "Z", "V"]);
+const TOKEN_LETTERS = new Set(["y", "M", "d", "H", "h", "a", "m", "s", "S", "Z", "X", "V"]);
 
 const isLetter = (ch: string): boolean => (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z");
 
@@ -75,6 +79,12 @@ function resolveToken(letter: string, count: number): Token {
     case "H":
       if (count > 2) throw new InvalidPatternError(`Unsupported hour token "${show(letter, count)}"; use H or HH (24-hour).`);
       return { ...base, field: "hour", width: count };
+    case "h":
+      if (count > 2) throw new InvalidPatternError(`Unsupported hour token "${show(letter, count)}"; use h or hh (12-hour).`);
+      return { ...base, field: "hour12", width: count };
+    case "a":
+      if (count !== 1) throw new InvalidPatternError(`Use a for the AM/PM marker ("${show(letter, count)}" is not a token).`);
+      return { ...base, field: "dayPeriod", width: 0 };
     case "m":
       if (count > 2) throw new InvalidPatternError(`Unsupported minute token "${show(letter, count)}"; use m or mm.`);
       return { ...base, field: "minute", width: count };
@@ -86,7 +96,13 @@ function resolveToken(letter: string, count: number): Token {
       return { ...base, field: "fraction", width: count };
     case "Z":
       if (count !== 2) throw new InvalidPatternError(`Use ZZ for the UTC offset ("${show(letter, count)}" is not a token).`);
+      // width 0 marks the ZZ form: always ±HH:MM, never the literal "Z".
       return { ...base, field: "offset", width: 0 };
+    case "X":
+      // X → ±HH (or ±HHMM when minutes are non-zero); XX → ±HHMM; XXX → ±HH:MM.
+      // All three render UTC as the literal "Z" and accept it on parse.
+      if (count > 3) throw new InvalidPatternError(`Unsupported offset token "${show(letter, count)}"; use X, XX or XXX.`);
+      return { ...base, field: "offset", width: count };
     case "V":
       if (count !== 2) throw new InvalidPatternError(`Use VV for the IANA time-zone id ("${show(letter, count)}" is not a token).`);
       return { ...base, field: "zone", width: 0 };
@@ -147,17 +163,60 @@ export function tokenize(pattern: string): Segment[] {
   }
 
   flushLiteral();
+  checkCoherent(segments);
   return segments;
+}
+
+/**
+ * Reject patterns whose tokens contradict each other. The 24-hour token (`H`) and the
+ * 12-hour pair (`h`/`a`) describe the same field two different ways; a pattern using
+ * both is a mistake rather than something to resolve silently.
+ */
+function checkCoherent(segments: readonly Segment[]): void {
+  let has24 = false;
+  let has12 = false;
+  for (const seg of segments) {
+    if (seg.kind !== "token") continue;
+    if (seg.tok.field === "hour") has24 = true;
+    if (seg.tok.field === "hour12" || seg.tok.field === "dayPeriod") has12 = true;
+  }
+  if (has24 && has12) {
+    throw new InvalidPatternError(
+      'A pattern cannot mix the 24-hour token "H" with the 12-hour tokens "h"/"a"; pick one clock.',
+    );
+  }
 }
 
 /** Which fields each Temporal type can supply / accept. Empty ⇒ unsupported by tokens. */
 export const ALLOWED_FIELDS: Record<TemporalTypeName, ReadonlySet<FieldKind>> = {
   PlainDate: new Set<FieldKind>(["year", "month", "day"]),
-  PlainTime: new Set<FieldKind>(["hour", "minute", "second", "fraction"]),
-  PlainDateTime: new Set<FieldKind>(["year", "month", "day", "hour", "minute", "second", "fraction"]),
+  PlainTime: new Set<FieldKind>(["hour", "hour12", "dayPeriod", "minute", "second", "fraction"]),
+  PlainDateTime: new Set<FieldKind>([
+    "year",
+    "month",
+    "day",
+    "hour",
+    "hour12",
+    "dayPeriod",
+    "minute",
+    "second",
+    "fraction",
+  ]),
   PlainYearMonth: new Set<FieldKind>(["year", "month"]),
   PlainMonthDay: new Set<FieldKind>(["month", "day"]),
-  ZonedDateTime: new Set<FieldKind>(["year", "month", "day", "hour", "minute", "second", "fraction", "offset", "zone"]),
+  ZonedDateTime: new Set<FieldKind>([
+    "year",
+    "month",
+    "day",
+    "hour",
+    "hour12",
+    "dayPeriod",
+    "minute",
+    "second",
+    "fraction",
+    "offset",
+    "zone",
+  ]),
   Instant: new Set<FieldKind>(),
   Duration: new Set<FieldKind>(),
 };

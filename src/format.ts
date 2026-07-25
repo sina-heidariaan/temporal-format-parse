@@ -70,6 +70,31 @@ function requireNumber(value: number | undefined, field: string): number {
   return value;
 }
 
+const OFFSET_SHAPE = /^([+-])(\d{2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?$/;
+
+/**
+ * Render a `±HH:MM` offset in one of the `X` forms: UTC becomes the literal `Z`,
+ * `X` uses `±HH` when the minutes are zero and widens to `±HHMM` otherwise, `XX` is
+ * always `±HHMM`, and `XXX` is always `±HH:MM`.
+ */
+function renderOffsetX(offset: string, tok: Token): string {
+  const m = OFFSET_SHAPE.exec(offset);
+  if (!m) throw new FormatError(`Cannot format UTC offset "${offset}" — expected ±HH:MM.`);
+  const sign = m[1]!;
+  const hh = m[2]!;
+  const mm = m[3]!;
+  const ss = m[4];
+  if (ss !== undefined && Number.parseFloat(ss) !== 0) {
+    // Sub-minute offsets exist only in pre-1900 zone history and no X form can carry
+    // them; ZZ passes the value through unchanged.
+    throw new FormatError(`UTC offset "${offset}" has sub-minute precision that "${tok.letter.repeat(tok.count)}" cannot represent; use ZZ.`);
+  }
+  if (hh === "00" && mm === "00") return "Z";
+  if (tok.width === 3) return `${sign}${hh}:${mm}`;
+  if (tok.width === 2 || mm !== "00") return `${sign}${hh}${mm}`;
+  return `${sign}${hh}`;
+}
+
 function renderToken(value: TemporalLike, type: string, tok: Token): string {
   switch (tok.field) {
     case "year": {
@@ -85,6 +110,13 @@ function renderToken(value: TemporalLike, type: string, tok: Token): string {
       return requireNumber(value.day, "day").toString().padStart(tok.width, "0");
     case "hour":
       return requireNumber(value.hour, "hour").toString().padStart(tok.width, "0");
+    case "hour12": {
+      const hour = requireNumber(value.hour, "hour");
+      // 0 → 12 AM and 12 → 12 PM: the 12-hour clock has no zero.
+      return (hour % 12 || 12).toString().padStart(tok.width, "0");
+    }
+    case "dayPeriod":
+      return requireNumber(value.hour, "hour") < 12 ? "AM" : "PM";
     case "minute":
       return requireNumber(value.minute, "minute").toString().padStart(tok.width, "0");
     case "second":
@@ -98,9 +130,10 @@ function renderToken(value: TemporalLike, type: string, tok: Token): string {
     }
     case "offset": {
       if (typeof value.offset !== "string") {
-        throw new FormatError(`Temporal.${type} has no UTC offset (ZZ) to format.`);
+        throw new FormatError(`Temporal.${type} has no UTC offset (${tok.letter.repeat(tok.count)}) to format.`);
       }
-      return value.offset;
+      // ZZ (width 0) emits the value's own ±HH:MM verbatim; X/XX/XXX reshape it.
+      return tok.width === 0 ? value.offset : renderOffsetX(value.offset, tok);
     }
     case "zone": {
       if (typeof value.timeZoneId !== "string") {

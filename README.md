@@ -93,8 +93,10 @@ import { format, parse } from "temporal-format-parse";
 
 format(Temporal.PlainDate.from("2026-07-13"), "dd.MM.yyyy");           // "13.07.2026"
 format(Temporal.PlainTime.from("09:03:07.5"), "HH:mm:ss.SSS");         // "09:03:07.500"
+format(Temporal.PlainTime.from("13:05"), "h:mm a");                    // "1:05 PM"
 
 parse("13.07.2026", "dd.MM.yyyy", "PlainDate");
+parse("1:05 PM", "h:mm a", "PlainTime");
 parse("2026-07-13 09:30", "yyyy-MM-dd HH:mm", "PlainDateTime");
 parse("2026-07-13T09:30-04:00[America/New_York]",
       "yyyy-MM-dd'T'HH:mmZZ'['VV']'", "ZonedDateTime");
@@ -118,10 +120,15 @@ else is a literal. Wrap letters in single quotes to keep them literal (`'T'`), a
 | `MM` / `M` | Month, padded / minimal | `07` / `7` |
 | `dd` / `d` | Day of month, padded / minimal | `13` / `13` |
 | `HH` / `H` | Hour (0–23), padded / minimal | `09` / `9` |
+| `hh` / `h` | Hour (1–12), padded / minimal — pairs with `a` | `01` / `1` |
+| `a` | `AM` / `PM` marker | `PM` |
 | `mm` / `m` | Minute, padded / minimal | `03` |
 | `ss` / `s` | Second, padded / minimal | `07` |
 | `S…` | Fractional second, N digits (`SSS` = ms … `SSSSSSSSS` = ns) | `123456789` |
-| `ZZ` | UTC offset `±HH:MM` (ZonedDateTime) | `-04:00` |
+| `ZZ` | UTC offset, always `±HH:MM` (ZonedDateTime) | `-04:00` |
+| `X` | UTC offset `±HH` (widens to `±HHMM` when minutes ≠ 0), `Z` for UTC | `-04` |
+| `XX` | UTC offset `±HHMM`, `Z` for UTC | `-0400` |
+| `XXX` | UTC offset `±HH:MM`, `Z` for UTC | `-04:00` |
 | `VV` | IANA time-zone id (ZonedDateTime) | `America/New_York` |
 
 **Which tokens each type accepts**
@@ -129,16 +136,55 @@ else is a literal. Wrap letters in single quotes to keep them literal (`'T'`), a
 | Type | Valid fields |
 |------|--------------|
 | `PlainDate` | `y M d` |
-| `PlainTime` | `H m s S` |
-| `PlainDateTime` | `y M d H m s S` |
+| `PlainTime` | `H h a m s S` |
+| `PlainDateTime` | `y M d H h a m s S` |
 | `PlainYearMonth` | `y M` |
 | `PlainMonthDay` | `M d` |
-| `ZonedDateTime` | `y M d H m s S ZZ VV` |
+| `ZonedDateTime` | `y M d H h a m s S ZZ X VV` |
 
 A token a type can't supply is rejected with a `FormatError` / `ParseError`. `Instant`
 and `Duration` aren't supported (an Instant has no date without a zone; a Duration is an
 amount, not a point in time) — convert an `Instant` with `.toZonedDateTimeISO(zone)`
 first.
+
+### 12-hour clock (`h` + `a`)
+
+`h`/`hh` is the 1–12 hour and `a` is the `AM`/`PM` marker. `12:00 AM` is midnight and
+`12:00 PM` is noon.
+
+```ts
+format(Temporal.PlainTime.from("13:05"), "h:mm a");   // "1:05 PM"
+parse("1:05 PM", "h:mm a", "PlainTime");              // 13:05:00
+```
+
+Two rules keep this unambiguous:
+
+- A pattern **cannot mix** `H` with `h`/`a` — they describe the same field two different
+  ways, so the pattern is rejected rather than silently resolved.
+- On **parse**, `h` requires `a` (is `07` morning or evening?) and `a` requires `h`.
+  Formatting either one alone is fine.
+
+`a` is fixed English `AM`/`PM` — arithmetic and two constants, not locale data — so the
+zero-dependency, no-CLDR guarantee below still holds. Parsing accepts any case
+(`pm`, `Pm`, `PM`).
+
+### UTC offset forms (`ZZ` and `X`/`XX`/`XXX`)
+
+`ZZ` is always `±HH:MM` and never emits `Z`; it is the round-trip-safe default. The `X`
+family covers the other spellings you meet in real-world data and renders UTC as `Z`:
+
+```ts
+const zdt = Temporal.ZonedDateTime.from("2026-07-13T09:30-04:00[America/New_York]");
+format(zdt, "X");    // "-04"
+format(zdt, "XX");   // "-0400"
+format(zdt, "XXX");  // "-04:00"
+format(utcZdt, "X"); // "Z"
+```
+
+On parse, every form also accepts the alternatives it can render, and `Z` normalizes to
+`+00:00`. `X` widens to `±HHMM` for zones with non-zero minutes (`+0530`), since `±HH`
+alone would lose them. Sub-minute historical offsets (pre-1900 LMT) can't be expressed
+in any `X` form and throw — use `ZZ`, which passes the value through unchanged.
 
 ### Two-digit year (`yy`) pivot
 
@@ -168,9 +214,10 @@ parse("2026-07-13", "yyyy-MM-dd", "PlainDate", { temporal: Temporal });
 
 ## Scope (what this is not)
 
-- **No locale-aware textual parsing** — no month names, weekday names, era names, or
-  am/pm words. Those need CLDR data and can't reliably round-trip; they were the part
-  TC39 declined to standardize, and are deliberately out of scope here.
+- **No locale-aware textual parsing** — no month names, weekday names, or era names.
+  Those need CLDR data and can't reliably round-trip; they were the part TC39 declined
+  to standardize, and are deliberately out of scope here. (The `a` marker is the one
+  textual token, and it is fixed English `AM`/`PM`, not locale data.)
 - **No full CLDR/LDML engine** — a curated common token subset only.
 - **No `Date`** anywhere in the code path.
 

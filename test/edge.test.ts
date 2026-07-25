@@ -33,6 +33,42 @@ describe("edge — boundary and historical dates", () => {
   });
 });
 
+describe("edge — 12-hour clock and offset spellings", () => {
+  it("keeps the DST fold resolvable when the offset is spelled ±HHMM", () => {
+    // 2024-11-03 01:30 in New York happens twice; the offset picks the instant.
+    const p = "yyyy-MM-dd HH:mm XX '['VV']'";
+    const first = parse("2024-11-03 01:30 -0400 [America/New_York]", p, "ZonedDateTime", opts);
+    const second = parse("2024-11-03 01:30 -0500 [America/New_York]", p, "ZonedDateTime", opts);
+    expect(second.epochNanoseconds - first.epochNanoseconds).toBe(3_600_000_000_000n);
+  });
+
+  it("round-trips a half-hour zone through the X form", () => {
+    const zdt = Temporal.ZonedDateTime.from("2026-07-13T09:30:00+05:30[Asia/Kolkata]");
+    const p = "yyyy-MM-dd'T'HH:mmX'['VV']'";
+    expect(format(zdt, p)).toBe("2026-07-13T09:30+0530[Asia/Kolkata]");
+    expect(parse(format(zdt, p), p, "ZonedDateTime", opts).epochNanoseconds).toBe(zdt.epochNanoseconds);
+  });
+
+  it("keeps midnight and noon distinct across a 12-hour round-trip", () => {
+    for (const iso of ["00:00", "12:00"]) {
+      const t = Temporal.PlainTime.from(iso);
+      expect(parse(format(t, "h:mm a"), "h:mm a", "PlainTime", opts).equals(t)).toBe(true);
+    }
+    expect(format(Temporal.PlainTime.from("00:00"), "h:mm a")).toBe("12:00 AM");
+    expect(format(Temporal.PlainTime.from("12:00"), "h:mm a")).toBe("12:00 PM");
+  });
+
+  it("rejects a sub-minute historical offset in the X forms but passes it through ZZ", () => {
+    // Amsterdam ran at +00:19:32 before 1937 — no X form can carry the seconds.
+    const zdt = Temporal.ZonedDateTime.from("1900-07-13T09:30:00[Europe/Amsterdam]");
+    expect(zdt.offset).toContain(":");
+    if (zdt.offset.length > 6) {
+      expect(() => format(zdt, "X")).toThrow(/sub-minute/);
+      expect(format(zdt, "ZZ")).toBe(zdt.offset);
+    }
+  });
+});
+
 describe("edge — leap day validity (overflow: reject)", () => {
   it("accepts Feb 29 in a leap year", () => {
     expect(parse("2024-02-29", "yyyy-MM-dd", "PlainDate", opts).toString()).toBe("2024-02-29");

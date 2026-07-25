@@ -8,15 +8,32 @@ released version corresponds to a git tag `vX.Y.Z` and a GitHub Release.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-25
+
+Two additive token groups. No behaviour changes to existing patterns — every 0.1.1
+pattern formats and parses byte-identically.
+
 ### Added
 
+- **12-hour clock tokens** `h` / `hh` (hour 1–12) and `a` (`AM`/`PM`), valid on
+  `PlainTime`, `PlainDateTime` and `ZonedDateTime`. `12:00 AM` is midnight, `12:00 PM`
+  is noon; parsing accepts any case (`pm`, `Pm`, `PM`). This is fixed English text, not
+  CLDR data, so the zero-dependency and no-locale guarantees are unchanged.
+  - A pattern mixing `H` with `h`/`a` is rejected as contradictory
+    (`InvalidPatternError`).
+  - On parse, `h` requires `a` and `a` requires `h`; an hour outside 1–12 fails loudly.
+- **UTC offset variants** `X` (`±HH`, widening to `±HHMM` when minutes are non-zero),
+  `XX` (`±HHMM`) and `XXX` (`±HH:MM`). All three render UTC as the literal `Z` and
+  accept `Z` on parse, normalizing it to `+00:00`. Existing `ZZ` is untouched: always
+  `±HH:MM`, never `Z`.
+  - Sub-minute historical offsets can't be represented in any `X` form and throw a
+    `FormatError` pointing at `ZZ`.
 - Test suite: dedicated `reflect` coverage and `temporal-sql`-style edge-case tests
   (pre-1970 and proleptic/BC years, years ≥ 10000, leap-day validity, DST fall-back
-  fold, fractional-second and boundary-time precision).
+  fold, fractional-second and boundary-time precision), plus 12-hour and offset-variant
+  coverage plumbed into the fast-check round-trip properties.
 - CI: GitHub Actions workflow — a `check` matrix on Node 18/20/22/24/26 (26 exercises
   native Temporal) plus a separate `attw` tarball-gate job.
-
-_Dev-only; no change to published sources._
 
 ## [0.1.1] — 2026-07-21
 
@@ -47,5 +64,6 @@ Initial public release (first version published to npm).
 - No locale-aware textual parsing (month/weekday/era names, am/pm words).
 - No full CLDR/LDML engine — a curated common numeric token subset only.
 
-[Unreleased]: https://github.com/sina-heidariaan/temporal-format-parser/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/sina-heidariaan/temporal-format-parser/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/sina-heidariaan/temporal-format-parser/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/sina-heidariaan/temporal-format-parser/releases/tag/v0.1.1

@@ -6,7 +6,8 @@ import { ALLOWED_FIELDS, tokenize, UNSUPPORTED_TYPES, type FieldKind, type Token
 /**
  * Parse a string into a Temporal value using a numeric token pattern — the mirror of
  * {@link format}. Fixed numeric patterns only (`yyyy-MM-dd`, `MM/dd/yyyy`,
- * `dd.MM.yyyy HH:mm`, …); there is **no** locale/textual parsing (month names, am/pm).
+ * `dd.MM.yyyy HH:mm`, …), plus the fixed `AM`/`PM` marker (`h:mm a`); there is **no**
+ * locale-aware parsing (month names, weekday names, era).
  *
  * The result is built with a real Temporal implementation, resolved from
  * `options.temporal` or the host's native `globalThis.Temporal` (see {@link ParseOptions}).
@@ -15,6 +16,7 @@ import { ALLOWED_FIELDS, tokenize, UNSUPPORTED_TYPES, type FieldKind, type Token
  * @example
  * parse("07/13/2026", "MM/dd/yyyy", "PlainDate");
  * parse("13.07.2026 09:30", "dd.MM.yyyy HH:mm", "PlainDateTime", { temporal: Temporal });
+ * parse("1:05 PM", "h:mm a", "PlainTime");
  *
  * ### Two-digit year (`yy`) pivot
  * `00`–`68` → `2000`–`2068`; `69`–`99` → `1969`–`1999` (the ECMAScript legacy rule).
@@ -62,6 +64,7 @@ export function parse<K extends TemporalTypeName>(
   }
 
   const fields = extractFields(order, match);
+  resolveHour12(fields);
   const bag = buildBag(target, fields);
   const Temporal = resolveTemporal(options);
   try {
@@ -80,6 +83,9 @@ interface Fields {
   month?: number;
   day?: number;
   hour?: number;
+  hour12?: number;
+  /** True for PM, false for AM; only set when the pattern has an `a` token. */
+  dayPeriodPm?: boolean;
   minute?: number;
   second?: number;
   millisecond?: number;
@@ -99,12 +105,25 @@ function groupPattern(tok: Token): string {
       return tok.count === 1 ? "-?\\d{1,6}" : `\\d{${tok.width}}`;
     case "fraction":
       return `\\d{${tok.width}}`;
+    case "dayPeriod":
+      return "[AaPp][Mm]";
     case "offset":
-      return "[+-]\\d{2}:\\d{2}";
+      // ZZ (width 0) is strictly ±HH:MM. The X forms also accept "Z" for UTC.
+      switch (tok.width) {
+        case 1:
+          return "Z|[+-]\\d{2}(?:\\d{2})?";
+        case 2:
+          return "Z|[+-]\\d{4}";
+        case 3:
+          return "Z|[+-]\\d{2}:\\d{2}";
+        default:
+          return "[+-]\\d{2}:\\d{2}";
+      }
     case "zone":
       return "[A-Za-z_][A-Za-z0-9_+-]*(?:\\/[A-Za-z0-9_+-]+)*";
     default:
-      // month / day / hour / minute / second: fixed width when padded (MM), else 1–2.
+      // month / day / hour / hour12 / minute / second: fixed width when padded (MM),
+      // else 1–2.
       return tok.width >= 2 ? "\\d{2}" : "\\d{1,2}";
   }
 }
@@ -133,6 +152,12 @@ function assignField(fields: Fields, tok: Token, raw: string): void {
     case "hour":
       fields.hour = Number.parseInt(raw, 10);
       return;
+    case "hour12":
+      fields.hour12 = Number.parseInt(raw, 10);
+      return;
+    case "dayPeriod":
+      fields.dayPeriodPm = raw[0] === "p" || raw[0] === "P";
+      return;
     case "minute":
       fields.minute = Number.parseInt(raw, 10);
       return;
@@ -147,12 +172,49 @@ function assignField(fields: Fields, tok: Token, raw: string): void {
       return;
     }
     case "offset":
-      fields.offset = raw;
+      fields.offset = normalizeOffset(raw);
       return;
     case "zone":
       fields.zone = raw;
       return;
   }
+}
+
+/**
+ * Reduce every accepted offset spelling (`Z`, `±HH`, `±HHMM`, `±HH:MM`) to the single
+ * canonical `±HH:MM` that Temporal's `.from()` bag expects.
+ */
+function normalizeOffset(raw: string): string {
+  if (raw === "Z") return "+00:00";
+  if (raw.includes(":")) return raw;
+  const sign = raw[0]!;
+  const digits = raw.slice(1);
+  const hh = digits.slice(0, 2);
+  const mm = digits.length > 2 ? digits.slice(2, 4) : "00";
+  return `${sign}${hh}:${mm}`;
+}
+
+/**
+ * Fold a 12-hour reading (`h` + `a`) into the 24-hour `hour` field. Neither token is
+ * meaningful alone: `h` without `a` is ambiguous (is `07` morning or evening?) and `a`
+ * without `h` carries no hour at all, so both cases fail rather than guess.
+ */
+function resolveHour12(fields: Fields): void {
+  if (fields.hour12 === undefined) {
+    if (fields.dayPeriodPm !== undefined) {
+      throw new ParseError('Pattern has an AM/PM token "a" but no 12-hour token "h" to apply it to.');
+    }
+    return;
+  }
+  if (fields.dayPeriodPm === undefined) {
+    throw new ParseError('Pattern has a 12-hour token "h" but no AM/PM token "a", so the hour is ambiguous.');
+  }
+  const h12 = fields.hour12;
+  if (h12 < 1 || h12 > 12) {
+    throw new ParseError(`Hour "${h12}" is out of range for a 12-hour clock (1–12).`);
+  }
+  // 12 AM is hour 0 and 12 PM is hour 12.
+  fields.hour = (h12 % 12) + (fields.dayPeriodPm ? 12 : 0);
 }
 
 /** `00`–`68` → 2000s, `69`–`99` → 1900s (ECMAScript legacy pivot). */

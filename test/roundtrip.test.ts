@@ -63,6 +63,22 @@ describe("round-trip: parse(format(v, p), p, type) === v", () => {
     );
   });
 
+  it("PlainTime — h:mm:ss a (12-hour clock)", () => {
+    const arb = fc
+      .record({
+        hour: fc.integer({ min: 0, max: 23 }),
+        minute: fc.integer({ min: 0, max: 59 }),
+        second: fc.integer({ min: 0, max: 59 }),
+      })
+      .map((f) => Temporal.PlainTime.from(f));
+    fc.assert(
+      fc.property(arb, (v) => {
+        const p = "h:mm:ss a";
+        return v.equals(parse(format(v, p), p, "PlainTime", opts));
+      }),
+    );
+  });
+
   it("PlainYearMonth — yyyy-MM", () => {
     const arb = fc
       .record({ year: fc.integer({ min: 1583, max: 9999 }), month: fc.integer({ min: 1, max: 12 }) })
@@ -91,6 +107,22 @@ describe("round-trip: parse(format(v, p), p, type) === v", () => {
     fc.assert(
       fc.property(arb, (v) => {
         const p = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSZZ'['VV']'";
+        const back = parse(format(v, p), p, "ZonedDateTime", opts);
+        return back.epochNanoseconds === v.epochNanoseconds && back.timeZoneId === v.timeZoneId;
+      }),
+    );
+  });
+
+  it.each(["X", "XX", "XXX"])("ZonedDateTime — %s offset form (instant identity)", (offsetToken) => {
+    // Includes UTC (renders as "Z") and a half-hour zone (forces X to widen).
+    const zones = ["UTC", "America/New_York", "Europe/London", "Asia/Kolkata", "Australia/Sydney"];
+    const MAX_NS = 7_258_118_400_000_000_000n;
+    const arb = fc
+      .tuple(fc.bigInt({ min: 0n, max: MAX_NS }), fc.constantFrom(...zones))
+      .map(([ns, zone]) => Temporal.Instant.fromEpochNanoseconds(ns).toZonedDateTimeISO(zone));
+    fc.assert(
+      fc.property(arb, (v) => {
+        const p = `yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS${offsetToken}'['VV']'`;
         const back = parse(format(v, p), p, "ZonedDateTime", opts);
         return back.epochNanoseconds === v.epochNanoseconds && back.timeZoneId === v.timeZoneId;
       }),

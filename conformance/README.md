@@ -12,7 +12,7 @@ with its zone, nine fractional digits, the year 275760. A library can look corre
 README and still get every one of those wrong. These are the cases worth arguing about,
 written down with their expected answers.
 
-Current status in this repository: **65 cases, all passing** (see
+Current status in this repository: **65 cases, all passing** (57 factual, 8 flagged as this library's own design choices — see below) (see
 [`test/conformance.test.ts`](../test/conformance.test.ts)).
 
 ## Groups
@@ -70,6 +70,35 @@ check the result equals the original.
 | `output` | Expected formatted string. |
 | `equals` | For `roundtrip`: the reparsed value must satisfy `.equals(original)`. |
 | `throws` | The operation must throw. One of `ParseError`, `FormatError`, `InvalidPatternError` — map these onto whatever your library throws. |
+
+## Opinionated cases — read this before scoring another library
+
+8 of the 65 cases are marked `"opinionated": true` and carry an `opinion` line. They
+encode a **design choice or a known limitation of `temporal-format-parse`**, not a fact
+about dates. A different library can disagree with them and still be completely correct.
+
+Examples of what that means:
+
+- `shape-mixing-H-and-a-rejected` — this library refuses a pattern that mixes `H` with
+  `h`/`a`. Cross-checking them instead (accept `"13:05 PM"`, reject `"01:05 PM"`) is an
+  equally defensible design, and arguably a friendlier one.
+- `calendar-parse-always-iso` — this documents a *limitation here*: there is no calendar
+  token, so a non-ISO round trip is lossy. A calendar-aware library will and should
+  behave differently.
+
+**If you are comparing libraries, filter them out:**
+
+```js
+const factual = cases.cases.filter((c) => !c.opinionated);   // 57 of 65
+```
+
+The remaining 57 are things a date library should get right regardless of its design:
+February 30th is not a date, `:60` is not a second, 02:30 did not happen on the US
+spring-forward day, and nine fractional digits must not be silently truncated.
+
+Also note that a case is **not applicable** if your library has no token for what it
+tests. Cases using `ZZ`/`X`/`XX`/`XXX` or fractions other than 3 digits simply do not
+map onto a token set that lacks them — that is a scope difference, not a failure.
 
 ## Running it against another library
 

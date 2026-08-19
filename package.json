@@ -1,6 +1,6 @@
 {
   "name": "temporal-format-parse",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Token-based format and numeric parse for TC39 Temporal — format(value, \"yyyy-MM-dd\") and parse(\"07/13/2026\", \"MM/dd/yyyy\", \"PlainDate\") directly on Temporal values, no JS Date round-trip. Zero runtime dependencies; works on native Temporal or any polyfill.",
   "type": "module",
   "license": "MIT",

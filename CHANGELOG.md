@@ -8,6 +8,33 @@ released version corresponds to a git tag `vX.Y.Z` and a GitHub Release.
 
 ## [Unreleased]
 
+Conformance suite only. `src/` is untouched, so the shipped code is byte-identical
+to 0.2.1.
+
+### Added
+
+- Conformance case `dst-offset-in-overlap-matching-neither-rejected`: on the fall-back
+  day, `01:30` exists at both `-04:00` and `-05:00`, so `-07:00` must throw. Together
+  with `dst-overlap-offset-selects-second` this pins the actual rule — the offset must
+  match one of the real occurrences — rather than leaving it to prose. Added after an
+  external adapter read the existing cases as "the zone silently wins", which is not
+  what this library does.
+- A regression test asserting the two overlap occurrences are exactly one hour apart.
+
+### Changed
+
+- `extreme-year-past-max-rejected` now carries `"requiresToken": "y"`. A library with no
+  wide-year token throws on the unrecognised token instead of the range check, so the
+  case went green without testing anything. `conformance/README.md` documents how
+  adapters should skip such cases rather than count a false pass.
+- `shape-lowercase-am-pm-accepted` is no longer flagged `"opinionated"`: `temporal-fmt`
+  landed the same case-insensitive behaviour independently in its 0.8.5, so two
+  implementations now agree.
+- `shape-mixing-H-and-a-rejected` keeps its flag and now records the counter-argument
+  for the other design, so readers see both.
+
+Suite is 66 cases, 59 factual, all passing.
+
 ## [0.2.1] — 2026-08-19
 
 Documentation and metadata only. **The published code is byte-identical to 0.2.0** —

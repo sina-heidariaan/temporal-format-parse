@@ -7,12 +7,12 @@
   "author": "sina-heidariaan (https://github.com/sina-heidariaan)",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sina-heidariaan/temporal-format-parser.git"
+    "url": "git+https://github.com/sina-heidariaan/temporal-format-parse.git"
   },
   "bugs": {
-    "url": "https://github.com/sina-heidariaan/temporal-format-parser/issues"
+    "url": "https://github.com/sina-heidariaan/temporal-format-parse/issues"
   },
-  "homepage": "https://github.com/sina-heidariaan/temporal-format-parser#readme",
+  "homepage": "https://github.com/sina-heidariaan/temporal-format-parse#readme",
   "keywords": [
     "temporal",
     "temporal-api",

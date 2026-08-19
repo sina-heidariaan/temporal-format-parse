@@ -8,6 +8,33 @@ released version corresponds to a git tag `vX.Y.Z` and a GitHub Release.
 
 ## [Unreleased]
 
+### Added
+
+- **Public conformance suite** — `conformance/cases.json`, 65 machine-readable cases
+  covering DST gaps and overlaps, inputs that must be rejected, extreme years, offset
+  and zone spellings, and 1–9 fractional-second digits. Run by
+  `test/conformance.test.ts` on every CI run, and portable to any other Temporal token
+  library (see `conformance/README.md`).
+- README: a **Recipes** section with five worked layouts (`yyyyMMdd`, LDAP generalized
+  time, Luxon `fromFormat` migration, date-fns migration, zoned nanosecond timestamps),
+  each backed by a test in `test/recipes.test.ts`.
+- README: a **"Why this and not Temporal / Luxon / date-fns / temporal-fmt?"** comparison.
+- README: a link to the open discussion collecting real-world date formats.
+
+### Fixed
+
+- `package.json` `repository`, `bugs` and `homepage` pointed at a repository name that
+  does not exist (`temporal-format-parser`). They now point at
+  `temporal-format-parse`. The same wrong name is corrected in the README, this
+  changelog and `PUBLISHING.md`.
+
+### Documentation
+
+- Corrected the overstated claim that "nothing is lost". Nanoseconds, UTC offset and
+  IANA zone id do survive a round trip; the **calendar does not**. Added a
+  "Calendars — current limitation" section showing exactly how a non-ISO round trip
+  goes wrong, and the ISO-conversion workaround.
+
 ## [0.2.0] — 2026-07-25
 
 Two additive token groups. No behaviour changes to existing patterns — every 0.1.1
@@ -64,6 +91,6 @@ Initial public release (first version published to npm).
 - No locale-aware textual parsing (month/weekday/era names, am/pm words).
 - No full CLDR/LDML engine — a curated common numeric token subset only.
 
-[Unreleased]: https://github.com/sina-heidariaan/temporal-format-parser/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/sina-heidariaan/temporal-format-parser/compare/v0.1.1...v0.2.0
-[0.1.1]: https://github.com/sina-heidariaan/temporal-format-parser/releases/tag/v0.1.1
+[Unreleased]: https://github.com/sina-heidariaan/temporal-format-parse/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/sina-heidariaan/temporal-format-parse/compare/v0.1.1...v0.2.0
+[0.1.1]: https://github.com/sina-heidariaan/temporal-format-parse/releases/tag/v0.1.1

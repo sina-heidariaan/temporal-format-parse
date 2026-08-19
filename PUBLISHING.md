@@ -21,7 +21,7 @@ identical unless noted.
    npm view temporal-format-parse      # should 404 "is not in the registry" before first publish
    ```
 5. **Create the GitHub repo** and push the code (see [§5](#5-github-repo--release)):
-   `https://github.com/sina-heidariaan/temporal-format-parser`.
+   `https://github.com/sina-heidariaan/temporal-format-parse`.
 
 ---
 
@@ -118,7 +118,7 @@ git init
 git add .
 git commit -m "feat: initial temporal-format-parse release"
 git branch -M main
-git remote add origin https://github.com/sina-heidariaan/temporal-format-parser.git
+git remote add origin https://github.com/sina-heidariaan/temporal-format-parse.git
 git push -u origin main
 ```
 

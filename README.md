@@ -1,15 +1,25 @@
 # temporal-format-parse
 
-> Token-based **format** and numeric **parse** for the TC39 **Temporal** API —
-> `format(date, "MM/dd/yyyy")` ⇆ `parse("07/13/2026", "MM/dd/yyyy", "PlainDate")` —
-> operating **directly on Temporal values, with no JavaScript `Date`** and **zero
-> runtime dependencies**.
+> **Parse fixed, machine-written date formats straight into TC39 Temporal.**
+> `parse("20260713", "yyyyMMdd", "PlainDate")` → `Temporal.PlainDate`, and
+> `format` writes the same pattern back out. No JavaScript `Date` anywhere in the
+> code path, zero runtime dependencies.
+
+Your database, your CSV export, your LDAP directory and your mainframe feed all hand
+you dates in their own fixed layout — `20260713`, `13.07.2026`, `20260713093000Z`.
+`Temporal.PlainDate.from()` only accepts ISO 8601, so today you route that string
+through a `Date`-based library and lose precision on the way back. This package reads
+those layouts directly into the Temporal type you asked for.
 
 [![npm](https://img.shields.io/npm/v/temporal-format-parse.svg)](https://www.npmjs.com/package/temporal-format-parse)
 ![license](https://img.shields.io/badge/license-MIT-blue.svg)
 
 **Status:** early release (v0.x). Works on native `Temporal` (Node 26+, modern
 browsers) and on any polyfill you supply.
+
+> **Got a date format this can't read?**
+> [Tell me about it in one line →](https://github.com/sina-heidariaan/temporal-format-parse/discussions/2)
+> I'm collecting real-world layouts so this library covers inputs people actually have.
 
 ## Why
 
@@ -19,8 +29,13 @@ token library (Moment, Luxon, Day.js, date-fns) works through the legacy `Date`,
 Temporal → Date → Temporal round-trip silently drops **nanoseconds, calendar, and time
 zone** — the very things Temporal exists to protect.
 
-`temporal-format-parse` fills exactly that gap and nothing more: it reads and writes Temporal
-values field-by-field, so nothing is lost.
+`temporal-format-parse` fills exactly that gap: it reads and writes Temporal values
+field by field, so the wall-clock fields, the **nanoseconds**, the **UTC offset** and the
+**IANA time-zone id** all survive a `format` → `parse` round trip.
+
+One thing it does **not** carry is the **calendar**. If your value uses a non-ISO
+calendar, read [Calendars — current limitation](#calendars--current-limitation) before
+you use this package.
 
 ## What this package adds — before / after
 
@@ -74,6 +89,38 @@ parse(s, p, "ZonedDateTime").equals(zdt);           // true
 | Sub-millisecond precision | Lost (`Date` = ms) | Preserved to nanoseconds |
 | Time-zone identity | Lost | Preserved (`VV`) |
 | Runtime dependencies | Moment/Luxon/date-fns bundle | **Zero** |
+
+## Why this and not Temporal / Luxon / date-fns / temporal-fmt?
+
+All four are good tools. They just answer different questions.
+
+| | Temporal alone | Luxon | date-fns | temporal-fmt | **temporal-format-parse** |
+|---|---|---|---|---|---|
+| Parse a custom token pattern | ✗ (ISO 8601 only) | ✓ `fromFormat` | ✓ `parse` | ✓ | ✓ |
+| What parsing returns | — | a Luxon `DateTime` | a JS `Date` | a Temporal value | a Temporal value |
+| A JS `Date` in the code path | no | yes | yes | no | no |
+| Month names, weekdays, locale text | via `Intl` formatting | ✓ | ✓ | ✓ | ✗ — on purpose |
+| Relative time, durations, math | some math | ✓ | ✓ | ✓ | ✗ — Temporal already does math |
+
+**Temporal alone** — use it when your strings are ISO 8601 or RFC 9557. It has no token
+parser and no token formatter; those were deferred past v1. If `Temporal.PlainDate.from`
+already reads your input, you do not need this package.
+
+**Luxon / date-fns** — reach for these when you need human-facing text: `"July 13, 2026"`,
+`"3 days ago"`, French month names. They are mature and locale-complete. The cost is that
+both are built on the legacy `Date`, so a Temporal value handed in and taken back out
+comes home at millisecond precision.
+
+**temporal-fmt** — the closest neighbour, and a bigger library: it also works directly on
+Temporal values, and it *adds* locale-aware tokens (`MMMM`, `EEEE`), duration formatting
+and relative time, backed by `Intl`. Pick it when you want one library that does human
+text too.
+
+**temporal-format-parse** — pick this one when the input is **machine-written and fixed**,
+and you want the smallest, strictest thing that reads it. Numeric tokens only, no `Intl`,
+no CLDR, nothing to configure, and parsing rejects rather than guesses: `"2026-02-30"`,
+`"2026-7-13"` under `yyyy-MM-dd`, or a trailing stray character all throw a `ParseError`
+instead of quietly returning a wrong date.
 
 ## Install
 
@@ -198,6 +245,134 @@ Padded tokens have fixed widths, so patterns with no separators still parse
 next to each other; minimal forms (`M`, `d`) are variable-width and only unambiguous
 when a literal separates them.
 
+## Recipes
+
+Five layouts that come up over and over. Every snippet below is covered by a test in
+[`test/recipes.test.ts`](./test/recipes.test.ts).
+
+### 1. Compact `yyyyMMdd` (databases, filenames, batch feeds)
+
+No separators, so use the padded tokens — they have fixed widths and parse cleanly when
+they sit next to each other.
+
+```ts
+parse("20260713", "yyyyMMdd", "PlainDate");                  // Temporal.PlainDate 2026-07-13
+format(Temporal.PlainDate.from("2026-07-13"), "yyyyMMdd");   // "20260713"
+
+// with a time attached, e.g. a log filename
+parse("20260713T093000", "yyyyMMdd'T'HHmmss", "PlainDateTime");  // 2026-07-13T09:30:00
+```
+
+### 2. LDAP / X.509 generalized time (`20260713093000Z`)
+
+Generalized time is always UTC when it ends in `Z`. `ZonedDateTime` needs a real zone
+token (`VV`), and this format has none — so parse to a `PlainDateTime` and attach UTC:
+
+```ts
+const local = parse("20260713093000Z", "yyyyMMddHHmmss'Z'", "PlainDateTime");
+local.toZonedDateTime("UTC");        // 2026-07-13T09:30:00+00:00[UTC]
+
+// with the optional fraction
+parse("20260713093000.5Z", "yyyyMMddHHmmss'.'S'Z'", "PlainDateTime");  // 2026-07-13T09:30:00.5
+```
+
+The `'Z'` is in quotes because here it is a literal letter, not an offset token.
+
+### 3. Migrating from Luxon `fromFormat`
+
+The token spelling is the same; only the call shape and the return type change.
+
+```ts
+// before — returns a Luxon DateTime
+DateTime.fromFormat("07/13/2026", "MM/dd/yyyy");
+DateTime.fromFormat("2026-07-13 14:05:09", "yyyy-MM-dd HH:mm:ss");
+
+// after — returns the Temporal type you name
+parse("07/13/2026", "MM/dd/yyyy", "PlainDate");                     // Temporal.PlainDate
+parse("2026-07-13 14:05:09", "yyyy-MM-dd HH:mm:ss", "PlainDateTime"); // Temporal.PlainDateTime
+```
+
+Two differences to expect: there is no `.invalid` result — a bad input **throws** a
+`ParseError`; and textual tokens (`MMMM`, `EEEE`, `LLL`) are not supported here.
+
+### 4. Migrating from date-fns `parse` / `format`
+
+date-fns needs a reference `Date` to fill in the fields your pattern omits. This package
+does not: the target type declares exactly which fields the pattern must supply, and a
+missing one is an error rather than a silent default.
+
+```ts
+// before — returns a JS Date, borrowing today's time from the reference date
+parse("13.07.2026", "dd.MM.yyyy", new Date());
+formatFns(new Date(), "yyyy-MM-dd");
+
+// after — no reference value, no Date
+parse("13.07.2026", "dd.MM.yyyy", "PlainDate");                // Temporal.PlainDate
+format(Temporal.Now.plainDateISO(), "yyyy-MM-dd");             // "2026-07-13"
+```
+
+date-fns tokens `yyyy MM dd HH mm ss` carry over unchanged. Its `T`/`t` (epoch) and
+locale tokens have no equivalent here.
+
+### 5. Zoned timestamps at nanosecond precision
+
+The one round trip a `Date`-based library cannot do at all:
+
+```ts
+const pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSZZ'['VV']'";
+const zdt = Temporal.ZonedDateTime.from(
+  "2026-07-13T09:30:00.123456789-04:00[America/New_York]",
+);
+
+const s = format(zdt, pattern);
+// "2026-07-13T09:30:00.123456789-04:00[America/New_York]"
+
+parse(s, pattern, "ZonedDateTime").equals(zdt);   // true
+```
+
+`SSSSSSSSS` is nine fractional digits (nanoseconds), `ZZ` is the `±HH:MM` offset, and
+`VV` is the IANA zone id. Drop `VV` and you can no longer build a `ZonedDateTime` —
+the offset alone does not identify a zone.
+
+## Calendars — current limitation
+
+**Both `format` and `parse` work in whatever calendar the value already uses, and `parse`
+always produces an `iso8601` value.** There is no calendar token, and no `era` / `eraYear`
+token.
+
+That is fine for the ISO calendar, which is what almost all machine data uses. It is a
+real trap for anything else:
+
+```ts
+const hebrew = Temporal.PlainDate.from("2026-07-13").withCalendar("hebrew");
+
+format(hebrew, "yyyy-MM-dd");                     // "5786-10-28"  ← Hebrew fields
+parse("5786-10-28", "yyyy-MM-dd", "PlainDate");   // ISO date 5786-10-28  ← a different day
+```
+
+`format` faithfully printed the Hebrew year, month and day. `parse` had no way to know
+they were Hebrew, so it read them as ISO. The round trip does **not** come back to the
+same day.
+
+So, concretely:
+
+- ✅ ISO-calendar values round-trip exactly, including nanoseconds, offset and zone id.
+- ⚠️ A non-ISO value formats using **its own** calendar's field numbers.
+- ❌ `parse` never returns a non-ISO calendar, so a non-ISO round trip is lossy.
+- ❌ Japanese/ROC-style eras (`reiwa 8`) cannot be formatted or parsed at all.
+
+**What to do today:** convert to ISO before formatting, and re-apply the calendar after
+parsing — then the mapping is explicit and correct.
+
+```ts
+format(hebrew.withCalendar("iso8601"), "yyyy-MM-dd");                    // "2026-07-13"
+parse("2026-07-13", "yyyy-MM-dd", "PlainDate").withCalendar("hebrew");   // same Hebrew day
+```
+
+Calendar-aware options are on the "build it if users ask" list. If you need them,
+[open an issue](https://github.com/sina-heidariaan/temporal-format-parse/issues) or
+[say which calendar in the formats thread](https://github.com/sina-heidariaan/temporal-format-parse/discussions/2).
+
 ## Supplying a polyfill (Node < 26)
 
 `parse` constructs the result with a real Temporal implementation. It uses
@@ -219,6 +394,8 @@ parse("2026-07-13", "yyyy-MM-dd", "PlainDate", { temporal: Temporal });
   to standardize, and are deliberately out of scope here. (The `a` marker is the one
   textual token, and it is fixed English `AM`/`PM`, not locale data.)
 - **No full CLDR/LDML engine** — a curated common token subset only.
+- **No calendar-aware parsing** — `parse` always returns an `iso8601` value and there is
+  no era token. See [Calendars — current limitation](#calendars--current-limitation).
 - **No `Date`** anywhere in the code path.
 
 ## API
@@ -237,10 +414,31 @@ function parse<K extends TemporalTypeName>(
 Errors: `FormatError`, `ParseError`, `InvalidPatternError` (all extend `RangeError`).
 Also exported: `getTemporalType`, `isTemporal`, and the Temporal value types.
 
+## Conformance suite
+
+[`conformance/cases.json`](./conformance/cases.json) is a public, machine-readable suite
+of **65 cases** covering the parts of token parsing that are easy to get quietly wrong:
+
+- daylight-saving **gaps and overlaps** (a clock time that never happened; one that
+  happened twice),
+- inputs that must be **rejected** — `2026-02-30`, `10:00:60`, `2026-7-13` under
+  `yyyy-MM-dd`, a trailing stray character,
+- **extreme years** — 0, 1, 9999, Temporal's maximum 275760, negative years, the
+  two-digit pivot boundary,
+- **offsets and zones** — `Z` for UTC, half-hour zones, sub-minute pre-1900 offsets,
+  an offset that disagrees with its zone,
+- **fractional seconds** at every width from 1 to 9 digits.
+
+All 65 pass here, verified by [`test/conformance.test.ts`](./test/conformance.test.ts) on
+every CI run. The cases are plain data, not code, so you can run them against **any**
+Temporal token library — see [`conformance/README.md`](./conformance/README.md) for the
+case format and an adapter sketch. New cases are welcome, especially from real production
+data.
+
 ## Versioning & releases
 
 Semantic Versioning. Every release is a git tag `vX.Y.Z` and a matching
-[GitHub Release](https://github.com/sina-heidariaan/temporal-format-parser/releases); notable
+[GitHub Release](https://github.com/sina-heidariaan/temporal-format-parse/releases); notable
 changes are recorded in [CHANGELOG.md](./CHANGELOG.md). While the package is `0.x`,
 minor versions may contain breaking changes (per SemVer's initial-development clause).
 See [PUBLISHING.md](./PUBLISHING.md) for how releases are cut.

@@ -8,6 +8,11 @@ released version corresponds to a git tag `vX.Y.Z` and a GitHub Release.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-08-19
+
+Documentation and metadata only. **The published code is byte-identical to 0.2.0** —
+no token, API or behaviour change.
+
 ### Added
 
 - **Public conformance suite** — `conformance/cases.json`, 65 machine-readable cases
@@ -91,6 +96,7 @@ Initial public release (first version published to npm).
 - No locale-aware textual parsing (month/weekday/era names, am/pm words).
 - No full CLDR/LDML engine — a curated common numeric token subset only.
 
-[Unreleased]: https://github.com/sina-heidariaan/temporal-format-parse/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/sina-heidariaan/temporal-format-parse/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/sina-heidariaan/temporal-format-parse/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/sina-heidariaan/temporal-format-parse/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/sina-heidariaan/temporal-format-parse/releases/tag/v0.1.1

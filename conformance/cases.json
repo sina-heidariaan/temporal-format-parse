@@ -39,7 +39,7 @@
     { "id": "dst-overlap-offset-selects-first", "group": "dst", "op": "parse",
       "input": "2026-11-01T01:30-04:00[America/New_York]", "pattern": "yyyy-MM-dd'T'HH:mmZZ'['VV']'", "target": "ZonedDateTime",
       "expect": { "value": "2026-11-01T01:30:00-04:00[America/New_York]" },
-      "why": "The offset disambiguates the repeated hour. This is why ZZ+VV is the round-trip-safe pattern." },
+      "why": "The offset disambiguates the repeated hour. The rule is Temporal's offset:\"reject\" semantics: the offset must match ONE OF the actual occurrences of that wall time. It is not \"the zone wins\" — an offset matching neither occurrence throws, see dst-offset-in-overlap-matching-neither-rejected." },
 
     { "id": "dst-overlap-offset-selects-second", "group": "dst", "op": "parse",
       "input": "2026-11-01T01:30-05:00[America/New_York]", "pattern": "yyyy-MM-dd'T'HH:mmZZ'['VV']'", "target": "ZonedDateTime",
@@ -51,6 +51,11 @@
       "pattern": "yyyy-MM-dd'T'HH:mmZZ'['VV']'", "target": "ZonedDateTime",
       "expect": { "output": "2026-11-01T01:30-05:00[America/New_York]", "equals": true },
       "why": "The ambiguous hour must survive format -> parse as the same instant." },
+
+    { "id": "dst-offset-in-overlap-matching-neither-rejected", "group": "dst", "op": "parse",
+      "input": "2026-11-01T01:30-07:00[America/New_York]", "pattern": "yyyy-MM-dd'T'HH:mmZZ'['VV']'", "target": "ZonedDateTime",
+      "expect": { "throws": "ParseError" },
+      "why": "01:30 happens twice that day at -04:00 and -05:00. -07:00 is neither, so it must throw. Together with dst-overlap-offset-selects-second this pins the exact rule: the offset must match one of the real occurrences — the zone does not silently override it." },
 
     { "id": "dst-offset-not-in-zone-rejected", "group": "dst", "op": "parse",
       "input": "2026-07-13T09:30-07:00[America/New_York]", "pattern": "yyyy-MM-dd'T'HH:mmZZ'['VV']'", "target": "ZonedDateTime",
@@ -123,7 +128,8 @@
 
     { "id": "extreme-year-past-max-rejected", "group": "extreme-years", "op": "parse",
       "input": "275761-01-01", "pattern": "y-MM-dd", "target": "PlainDate",
-      "expect": { "throws": "ParseError" }, "why": "One year past the supported range must be an error, not a wrap-around." },
+      "expect": { "throws": "ParseError" }, "requiresToken": "y",
+      "why": "One year past the supported range must be an error, not a wrap-around. NOTE for adapters: if your library has no wide-year token, this case passes vacuously — the throw comes from the unknown token, not from range checking. Skip it rather than counting it as a pass." },
 
     { "id": "extreme-year-negative", "group": "extreme-years", "op": "parse",
       "input": "-000001-01-01", "pattern": "y-MM-dd", "target": "PlainDate",

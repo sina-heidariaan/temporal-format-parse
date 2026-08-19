@@ -417,7 +417,7 @@ Also exported: `getTemporalType`, `isTemporal`, and the Temporal value types.
 ## Conformance suite
 
 [`conformance/cases.json`](./conformance/cases.json) is a public, machine-readable suite
-of **65 cases** covering the parts of token parsing that are easy to get quietly wrong:
+of **66 cases** covering the parts of token parsing that are easy to get quietly wrong:
 
 - daylight-saving **gaps and overlaps** (a clock time that never happened; one that
   happened twice),
@@ -429,7 +429,7 @@ of **65 cases** covering the parts of token parsing that are easy to get quietly
   an offset that disagrees with its zone,
 - **fractional seconds** at every width from 1 to 9 digits.
 
-All 65 pass here, verified by [`test/conformance.test.ts`](./test/conformance.test.ts) on
+All 66 pass here, verified by [`test/conformance.test.ts`](./test/conformance.test.ts) on
 every CI run. 7 of them are flagged `"opinionated"` because they encode this library's
 own design choices rather than facts about dates; filter those out if you are scoring
 something else. The suite has already been reviewed by the author of a competing

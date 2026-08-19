@@ -12,7 +12,7 @@ with its zone, nine fractional digits, the year 275760. A library can look corre
 README and still get every one of those wrong. These are the cases worth arguing about,
 written down with their expected answers.
 
-Current status in this repository: **65 cases, all passing** (58 factual, 7 flagged as this library's own design choices — see below) (see
+Current status in this repository: **66 cases, all passing** (59 factual, 7 flagged as this library's own design choices — see below) (see
 [`test/conformance.test.ts`](../test/conformance.test.ts)).
 
 ## Groups
@@ -73,7 +73,7 @@ check the result equals the original.
 
 ## Opinionated cases — read this before scoring another library
 
-7 of the 65 cases are marked `"opinionated": true` and carry an `opinion` line. They
+7 of the 66 cases are marked `"opinionated": true` and carry an `opinion` line. They
 encode a **design choice or a known limitation of `temporal-format-parse`**, not a fact
 about dates. A different library can disagree with them and still be completely correct.
 
@@ -91,16 +91,29 @@ Examples of what that means:
 **If you are comparing libraries, filter them out:**
 
 ```js
-const factual = cases.cases.filter((c) => !c.opinionated);   // 58 of 65
+const factual = cases.cases.filter((c) => !c.opinionated);   // 59 of 66
 ```
 
-The remaining 58 are things a date library should get right regardless of its design:
+The remaining 59 are things a date library should get right regardless of its design:
 February 30th is not a date, `:60` is not a second, 02:30 did not happen on the US
 spring-forward day, and nine fractional digits must not be silently truncated.
 
 Also note that a case is **not applicable** if your library has no token for what it
 tests. Cases using `ZZ`/`X`/`XX`/`XXX` or fractions other than 3 digits simply do not
 map onto a token set that lacks them — that is a scope difference, not a failure.
+
+### Cases that can pass for the wrong reason
+
+A case carrying `"requiresToken"` tests behaviour that is only observable if your library
+has that token. `extreme-year-past-max-rejected` expects a throw for year 275761 — but a
+library with no wide-year token throws on the *unrecognised token* instead, and the case
+goes green without testing anything. **Skip those cases rather than counting them.**
+
+```js
+const applicable = cases.cases.filter((c) => !c.requiresToken || hasToken(c.requiresToken));
+```
+
+Thanks to the `temporal-fmt` maintainers, whose adapter surfaced this.
 
 ## Running it against another library
 

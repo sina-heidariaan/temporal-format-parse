@@ -98,3 +98,18 @@ for (const group of Object.keys(suite.groups)) {
     it.each(cases.map((c) => [c.id, c] as const))("%s", (_id, c) => runCase(c));
   });
 }
+
+// Regression for an external review finding: the overlap rule was readable as
+// "the zone silently wins". It does not — an offset matching neither occurrence throws.
+describe("conformance / dst — the overlap rule is offset-must-match-an-occurrence", () => {
+  const pattern = "yyyy-MM-dd'T'HH:mmZZ'['VV']'";
+  const zone = "[America/New_York]";
+  it("accepts both real occurrences as distinct instants one hour apart", () => {
+    const first = parse(`2026-11-01T01:30-04:00${zone}`, pattern, "ZonedDateTime", opts);
+    const second = parse(`2026-11-01T01:30-05:00${zone}`, pattern, "ZonedDateTime", opts);
+    expect(Number(second.epochMilliseconds - first.epochMilliseconds)).toBe(3_600_000);
+  });
+  it("rejects an offset that matches neither occurrence", () => {
+    expect(() => parse(`2026-11-01T01:30-07:00${zone}`, pattern, "ZonedDateTime", opts)).toThrow(ParseError);
+  });
+});

@@ -430,9 +430,11 @@ of **65 cases** covering the parts of token parsing that are easy to get quietly
 - **fractional seconds** at every width from 1 to 9 digits.
 
 All 65 pass here, verified by [`test/conformance.test.ts`](./test/conformance.test.ts) on
-every CI run. 8 of them are flagged `"opinionated"` because they encode this library's
+every CI run. 7 of them are flagged `"opinionated"` because they encode this library's
 own design choices rather than facts about dates; filter those out if you are scoring
-something else. The cases are plain data, not code, so you can run them against **any**
+something else. The suite has already been reviewed by the author of a competing
+library, and one flagged case was promoted to factual after both implementations
+independently landed on the same behaviour. The cases are plain data, not code, so you can run them against **any**
 Temporal token library — see [`conformance/README.md`](./conformance/README.md) for the
 case format and an adapter sketch. New cases are welcome, especially from real production
 data.

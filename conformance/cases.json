@@ -257,12 +257,13 @@
       "from": { "type": "PlainTime", "iso": "12:00:00" }, "pattern": "h:mm a",
       "expect": { "output": "12:00 PM" }, "why": "The other half of the same bug." },
 
-    { "id": "shape-mixing-H-and-a-rejected", "opinionated": true, "opinion": "This library refuses to mix H with h/a. Another library may reasonably cross-check them instead (accepting \"13:05 PM\" and rejecting \"01:05 PM\"). Both are defensible.", "group": "shape", "op": "parse",
+    { "id": "shape-mixing-H-and-a-rejected", "opinionated": true, "opinion": "This library refuses to mix H with h/a outright. temporal-fmt cross-checks them instead and makes the better argument: unambiguous input like \"13:05 PM\" should not be rejected merely for being redundant, and only the contradictory case (\"01:05 PM\") throws. Both ship tests for their choice; neither is wrong.", "group": "shape", "op": "parse",
       "input": "13:05 PM", "pattern": "HH:mm a", "target": "PlainTime",
       "expect": { "throws": "InvalidPatternError" }, "why": "H and a describe the same field two ways; the pattern is refused rather than silently resolved." },
 
-    { "id": "shape-lowercase-am-pm-accepted", "opinionated": true, "opinion": "This library accepts any case for AM/PM. A stricter library may require uppercase.", "group": "shape", "op": "parse",
+    { "id": "shape-lowercase-am-pm-accepted", "group": "shape", "op": "parse",
       "input": "1:05 pm", "pattern": "h:mm a", "target": "PlainTime",
-      "expect": { "value": "13:05:00" }, "why": "Real data is inconsistently cased." }
+      "expect": { "value": "13:05:00" },
+      "why": "Real data is inconsistently cased, and there is no ambiguity to guess wrong on. Cross-checked: temporal-fmt reached the same behaviour independently in 0.8.5." }
   ]
 }
